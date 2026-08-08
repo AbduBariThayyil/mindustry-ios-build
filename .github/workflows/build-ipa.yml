@@ -38,6 +38,15 @@ jobs:
           java-version: '17'
           cache: gradle
 
+      - name: Fetch MetalANGLE natives (not checked into Arc, must be downloaded)
+        working-directory: Arc
+        run: |
+          chmod +x ./gradlew
+          echo "--- matching tasks, in case the guess below is wrong ---"
+          ./gradlew :backends:backend-robovm:tasks --all 2>&1 | grep -iE "metal|fetch|extract|natives" || true
+          echo "--- attempting extraction ---"
+          ./gradlew :backends:backend-robovm:extractMetalANGLEKit --stacktrace
+
       - name: Inspect native libs, then patch for CI
         working-directory: Mindustry
         run: |
