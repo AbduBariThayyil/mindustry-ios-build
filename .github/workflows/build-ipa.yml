@@ -47,12 +47,16 @@ jobs:
           echo "--- attempting extraction ---"
           ./gradlew :backends:backend-robovm:extractMetalANGLEKit --stacktrace
 
-      - name: Inspect native libs, then patch for CI
+      - name: Inspect native libs and robovm config, then patch for CI
         working-directory: Mindustry
         run: |
           echo "--- comparing libarc.a between native dirs (diagnostic only) ---"
           ls -la ../Arc/natives/natives-ios/libs/ ../Arc/natives/natives-freetype-ios/libs/ || true
           shasum -a 256 ../Arc/natives/natives-ios/libs/libarc.a ../Arc/natives/natives-freetype-ios/libs/libarc.a || true
+          echo "--- ios/build.gradle (full, before patching) ---"
+          cat ios/build.gradle
+          echo "--- ios/robovm.xml (if present) ---"
+          cat ios/robovm.xml 2>/dev/null || echo "(no ios/robovm.xml file)"
           echo "--- patching ios/build.gradle ---"
           sed -i '' 's/iosSkipSigning = false/iosSkipSigning = true/' ios/build.gradle
           perl -0777 -pi -e 's#(into "libs")#duplicatesStrategy = DuplicatesStrategy.INCLUDE\n            $1#' ios/build.gradle
@@ -63,6 +67,17 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew ios:deploy -Pbuildversion=159.7 --stacktrace
+
+      - name: Dump backend-robovm's bundled robovm resource (diagnostic)
+        if: always()
+        working-directory: Mindustry
+        run: |
+          echo "--- contents of backend-robovm jar under META-INF/robovm ---"
+          unzip -l ../Arc/backends/backend-robovm/build/libs/backend-robovm-1.0.jar 2>/dev/null | grep -i robovm || echo "(jar not found or no robovm entries)"
+          echo "--- META-INF/robovm/robovm.xml ---"
+          unzip -p ../Arc/backends/backend-robovm/build/libs/backend-robovm-1.0.jar META-INF/robovm/robovm.xml 2>/dev/null
+          echo "--- META-INF/robovm/ios/robovm.xml ---"
+          unzip -p ../Arc/backends/backend-robovm/build/libs/backend-robovm-1.0.jar META-INF/robovm/ios/robovm.xml 2>/dev/null
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
