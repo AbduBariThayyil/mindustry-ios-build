@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-ipa:
-    runs-on: macos-15   # macos-14 is mid-deprecation, macos-latest just jumped to macOS 26 — 15 is the safer target for this old toolchain
+    runs-on: macos-15
     timeout-minutes: 60
     steps:
       - name: Checkout Mindustry v159.7
@@ -15,9 +15,16 @@ jobs:
           ref: v159.7
           path: Mindustry
 
-      - name: Read the Arc commit Mindustry was built against
+      - name: Resolve the Arc commit Mindustry was built against
         id: arc
-        run: echo "hash=$(grep '^archash=' Mindustry/gradle.properties | cut -d'=' -f2 | tr -d '\r\n')" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          short=$(grep '^archash=' Mindustry/gradle.properties | cut -d'=' -f2 | tr -d '\r\n')
+          echo "short hash: $short"
+          full=$(gh api "repos/Anuken/Arc/commits/$short" --jq .sha)
+          echo "full sha: $full"
+          echo "hash=$full" >> "$GITHUB_OUTPUT"
 
       - name: Checkout matching Arc (must sit next to Mindustry)
         uses: actions/checkout@v4
