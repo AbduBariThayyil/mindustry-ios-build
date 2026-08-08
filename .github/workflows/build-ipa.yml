@@ -21,9 +21,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           short=$(grep '^archash=' Mindustry/gradle.properties | cut -d'=' -f2 | tr -d '\r\n')
-          echo "short hash: $short"
           full=$(gh api "repos/Anuken/Arc/commits/$short" --jq .sha)
-          echo "full sha: $full"
           echo "hash=$full" >> "$GITHUB_OUTPUT"
 
       - name: Checkout matching Arc (must sit next to Mindustry)
@@ -40,9 +38,16 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Allow an unsigned build (no Apple cert on this runner)
+      - name: Inspect native libs, then patch for CI
         working-directory: Mindustry
-        run: sed -i '' 's/iosSkipSigning = false/iosSkipSigning = true/' ios/build.gradle
+        run: |
+          echo "--- comparing libarc.a between native dirs (diagnostic only) ---"
+          ls -la ../Arc/natives/natives-ios/libs/ ../Arc/natives/natives-freetype-ios/libs/ || true
+          shasum -a 256 ../Arc/natives/natives-ios/libs/libarc.a ../Arc/natives/natives-freetype-ios/libs/libarc.a || true
+          echo "--- patching ios/build.gradle ---"
+          sed -i '' 's/iosSkipSigning = false/iosSkipSigning = true/' ios/build.gradle
+          perl -0777 -pi -e 's#(into "libs")#duplicatesStrategy = DuplicatesStrategy.INCLUDE\n            $1#' ios/build.gradle
+          grep -n "duplicatesStrategy\|iosSkipSigning" ios/build.gradle
 
       - name: Build the IPA
         working-directory: Mindustry
