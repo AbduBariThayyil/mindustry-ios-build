@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout Mindustry v159.7
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           repository: Anuken/Mindustry
           ref: v159.7
@@ -27,41 +27,29 @@ jobs:
           echo "hash=$full" >> "$GITHUB_OUTPUT"
 
       - name: Checkout matching Arc (must sit next to Mindustry)
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           repository: Anuken/Arc
           ref: ${{ steps.arc.outputs.hash }}
           path: Arc
 
+      # Arc's .gitignore deliberately excludes backend-robovm's ios/libs folder -
+      # it's meant to be populated at build time by Arc's own extractMetalANGLEKit
+      # task (which depends on fetchMetalANGLEKit + verifyMetalANGLEKit). A plain
+      # checkout skips this, which is why the build previously failed at the link
+      # step with: ld: framework 'MetalANGLEKit' not found
+      - name: Fetch MetalANGLE iOS libs (Arc's own extractMetalANGLEKit task)
+        working-directory: Arc
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :backends:backend-robovm:extractMetalANGLEKit --console=plain
+
       - name: Set up JDK 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
           cache: gradle
-
-      # --- TEMPORARY DIAGNOSTIC STEP ---
-      # Arc's own .gitignore excludes backends/backend-robovm/res/META-INF/robovm/ios/libs/,
-      # which is exactly where the linker expects MetalANGLEKit.framework to live. That folder
-      # is populated by some Gradle task inside Arc (the same pattern libGDX's own robovm-metalangle
-      # backend uses: a task that downloads a zip and unzips it into that path) - but a plain
-      # checkout + ios:deploy never calls it. This step lists Arc's backend-robovm tasks so we can
-      # find its real name, then stops on purpose so we're not burning ~9 more minutes on a build
-      # we already know will fail the same way.
-      - name: "DIAGNOSTIC: find Arc's iOS/Metal native-lib fetch task"
-        working-directory: Arc
-        run: |
-          chmod +x ./gradlew
-          ./gradlew backends:backend-robovm:tasks --all > /tmp/robovm-tasks.txt
-          echo "----- full task list for :backends:backend-robovm -----"
-          cat /tmp/robovm-tasks.txt
-          echo ""
-          echo "----- likely candidates -----"
-          grep -iE "ios|metal|download|fetch|extract|native" /tmp/robovm-tasks.txt || echo "(nothing obvious matched - scan the full list above by eye)"
-          echo ""
-          echo "Whichever task fetches/extracts the iOS libs: add it as its own step (working-directory: Arc) right before 'Build the IPA', then delete this diagnostic step."
-          exit 1
-      # --- END TEMPORARY DIAGNOSTIC STEP ---
 
       - name: Allow an unsigned build (no Apple cert on this runner)
         working-directory: Mindustry
