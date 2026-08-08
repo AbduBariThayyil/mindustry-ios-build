@@ -1,0 +1,50 @@
+name: Build Mindustry iOS IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ipa:
+    runs-on: macos-15   # macos-14 is mid-deprecation, macos-latest just jumped to macOS 26 — 15 is the safer target for this old toolchain
+    timeout-minutes: 60
+    steps:
+      - name: Checkout Mindustry v159.7
+        uses: actions/checkout@v4
+        with:
+          repository: Anuken/Mindustry
+          ref: v159.7
+          path: Mindustry
+
+      - name: Read the Arc commit Mindustry was built against
+        id: arc
+        run: echo "hash=$(grep '^archash=' Mindustry/gradle.properties | cut -d'=' -f2 | tr -d '\r\n')" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout matching Arc (must sit next to Mindustry)
+        uses: actions/checkout@v4
+        with:
+          repository: Anuken/Arc
+          ref: ${{ steps.arc.outputs.hash }}
+          path: Arc
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Allow an unsigned build (no Apple cert on this runner)
+        working-directory: Mindustry
+        run: sed -i '' 's/iosSkipSigning = false/iosSkipSigning = true/' ios/build.gradle
+
+      - name: Build the IPA
+        working-directory: Mindustry
+        run: |
+          chmod +x ./gradlew
+          ./gradlew ios:deploy -Pbuildversion=159.7 --stacktrace
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mindustry-159.7-ios
+          path: Mindustry/ios/build/robovm/*.ipa
