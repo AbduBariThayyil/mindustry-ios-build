@@ -33,17 +33,6 @@ jobs:
           ref: ${{ steps.arc.outputs.hash }}
           path: Arc
 
-      # Arc's .gitignore deliberately excludes backend-robovm's ios/libs folder -
-      # it's meant to be populated at build time by Arc's own extractMetalANGLEKit
-      # task (which depends on fetchMetalANGLEKit + verifyMetalANGLEKit). A plain
-      # checkout skips this, which is why the build previously failed at the link
-      # step with: ld: framework 'MetalANGLEKit' not found
-      - name: Fetch MetalANGLE iOS libs (Arc's own extractMetalANGLEKit task)
-        working-directory: Arc
-        run: |
-          chmod +x ./gradlew
-          ./gradlew :backends:backend-robovm:extractMetalANGLEKit --console=plain
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
