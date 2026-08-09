@@ -38,13 +38,39 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Build and package Arc's iOS native library
+      - name: Build arc.xcframework and bundle it into backend-robovm
         working-directory: Arc
         run: |
           chmod +x ./gradlew
-          echo "--- building iOS natives ---"
           ./gradlew :arc-core:jnigenBuildAllIOS --stacktrace
-          echo "--- packaging iOS natives ---"
           ./gradlew :arc-core:jnigenPackageAllIOS --stacktrace
-          echo "--- searching the whole checkout for output ---"
-          find .. -iname "*.framework" -o -iname "*arc*.a" -o -iname "*.xcframework" 2>/dev/null
+          echo "--- bundling arc.xcframework into backend-robovm's resources ---"
+          mkdir -p backends/backend-robovm/res/META-INF/robovm/ios/libs
+          cp -R arc-core/build/natives/arc.xcframework backends/backend-robovm/res/META-INF/robovm/ios/libs/
+          ls -la backends/backend-robovm/res/META-INF/robovm/ios/libs/
+
+      - name: Fetch MetalANGLE natives (not checked into Arc, must be downloaded)
+        working-directory: Arc
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :backends:backend-robovm:extractMetalANGLEKit --stacktrace
+
+      - name: Patch ios build for CI
+        working-directory: Mindustry
+        run: |
+          echo "--- patching ios/build.gradle ---"
+          sed -i '' 's/iosSkipSigning = false/iosSkipSigning = true/' ios/build.gradle
+          perl -0777 -pi -e 's#(into "libs")#duplicatesStrategy = DuplicatesStrategy.INCLUDE\n            $1#' ios/build.gradle
+          grep -n "duplicatesStrategy\|iosSkipSigning" ios/build.gradle
+
+      - name: Build the IPA
+        working-directory: Mindustry
+        run: |
+          chmod +x ./gradlew
+          ./gradlew ios:deploy -Pbuildversion=159.7 --stacktrace
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mindustry-159.7-ios
+          path: Mindustry/ios/build/robovm/*.ipa
