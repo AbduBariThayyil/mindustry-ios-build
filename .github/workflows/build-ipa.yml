@@ -38,6 +38,12 @@ jobs:
           java-version: '17'
           cache: gradle
 
+      - name: Fetch MetalANGLE natives (not checked into Arc, must be downloaded)
+        working-directory: Arc
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :backends:backend-robovm:extractMetalANGLEKit --stacktrace
+
       - name: Build arc.xcframework and bundle it into backend-robovm
         working-directory: Arc
         run: |
@@ -47,13 +53,12 @@ jobs:
           echo "--- bundling arc.xcframework into backend-robovm's resources ---"
           mkdir -p backends/backend-robovm/res/META-INF/robovm/ios/libs
           cp -R arc-core/build/natives/arc.xcframework backends/backend-robovm/res/META-INF/robovm/ios/libs/
+          echo "--- everything sitting in libs/, after both copies ---"
           ls -la backends/backend-robovm/res/META-INF/robovm/ios/libs/
-
-      - name: Fetch MetalANGLE natives (not checked into Arc, must be downloaded)
-        working-directory: Arc
-        run: |
-          chmod +x ./gradlew
-          ./gradlew :backends:backend-robovm:extractMetalANGLEKit --stacktrace
+          echo "--- full structure of arc.xcframework itself ---"
+          find backends/backend-robovm/res/META-INF/robovm/ios/libs/arc.xcframework -type f 2>&1 | sort || true
+          echo "--- for comparison, structure of MetalANGLEKit.xcframework (known-working) ---"
+          find backends/backend-robovm/res/META-INF/robovm/ios/libs/MetalANGLEKit.xcframework -type f 2>&1 | sort || true
 
       - name: Patch ios build for CI
         working-directory: Mindustry
