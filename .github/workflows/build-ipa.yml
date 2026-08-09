@@ -38,46 +38,34 @@ jobs:
           java-version: '17'
           cache: gradle
 
+      - name: Check for an iOS native-build task in arc-core (diagnostic, fast)
+        working-directory: Arc
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :arc-core:tasks --all 2>&1 | grep -i ios || echo "(no ios-related task found in arc-core)"
+
       - name: Fetch MetalANGLE natives (not checked into Arc, must be downloaded)
         working-directory: Arc
         run: |
           chmod +x ./gradlew
-          echo "--- matching tasks, in case the guess below is wrong ---"
-          ./gradlew :backends:backend-robovm:tasks --all 2>&1 | grep -iE "metal|fetch|extract|natives" || true
-          echo "--- attempting extraction ---"
           ./gradlew :backends:backend-robovm:extractMetalANGLEKit --stacktrace
 
-      - name: Inspect native libs and robovm config, then patch for CI
+      - name: Patch ios build for CI
         working-directory: Mindustry
         run: |
-          echo "--- comparing libarc.a between native dirs (diagnostic only) ---"
-          ls -la ../Arc/natives/natives-ios/libs/ ../Arc/natives/natives-freetype-ios/libs/ || true
-          shasum -a 256 ../Arc/natives/natives-ios/libs/libarc.a ../Arc/natives/natives-freetype-ios/libs/libarc.a || true
-          echo "--- ios/build.gradle (full, before patching) ---"
-          cat ios/build.gradle
-          echo "--- ios/robovm.xml (if present) ---"
-          cat ios/robovm.xml 2>/dev/null || echo "(no ios/robovm.xml file)"
           echo "--- patching ios/build.gradle ---"
           sed -i '' 's/iosSkipSigning = false/iosSkipSigning = true/' ios/build.gradle
           perl -0777 -pi -e 's#(into "libs")#duplicatesStrategy = DuplicatesStrategy.INCLUDE\n            $1#' ios/build.gradle
           grep -n "duplicatesStrategy\|iosSkipSigning" ios/build.gradle
+          echo "--- removing stale 'arc' framework reference (nothing in this checkout produces arc.framework) ---"
+          sed -i '' '/<framework>arc<\/framework>/d' ios/robovm.xml
+          grep -n "framework" ios/robovm.xml
 
       - name: Build the IPA
         working-directory: Mindustry
         run: |
           chmod +x ./gradlew
           ./gradlew ios:deploy -Pbuildversion=159.7 --stacktrace
-
-      - name: Dump backend-robovm's bundled robovm resource (diagnostic)
-        if: always()
-        working-directory: Mindustry
-        run: |
-          echo "--- contents of backend-robovm jar under META-INF/robovm ---"
-          unzip -l ../Arc/backends/backend-robovm/build/libs/backend-robovm-1.0.jar 2>/dev/null | grep -i robovm || echo "(jar not found or no robovm entries)"
-          echo "--- META-INF/robovm/robovm.xml ---"
-          unzip -p ../Arc/backends/backend-robovm/build/libs/backend-robovm-1.0.jar META-INF/robovm/robovm.xml 2>/dev/null
-          echo "--- META-INF/robovm/ios/robovm.xml ---"
-          unzip -p ../Arc/backends/backend-robovm/build/libs/backend-robovm-1.0.jar META-INF/robovm/ios/robovm.xml 2>/dev/null
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
