@@ -50,6 +50,12 @@ jobs:
           chmod +x ./gradlew
           ./gradlew :backends:backend-robovm:extractMetalANGLEKit --stacktrace
 
+      - name: Build Arc iOS Natives
+        working-directory: Arc
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :arc-core:jnigenBuildAllIOS :arc-core:jnigenPackageAllIOS :backends:backend-robovm:jnigenBuildAllIOS :backends:backend-robovm:jnigenPackageAllIOS --stacktrace
+
       - name: Patch ios build for CI
         working-directory: Mindustry
         run: |
@@ -57,9 +63,6 @@ jobs:
           sed -i '' 's/iosSkipSigning = false/iosSkipSigning = true/' ios/build.gradle
           perl -0777 -pi -e 's#(into "libs")#duplicatesStrategy = DuplicatesStrategy.INCLUDE\n            $1#' ios/build.gradle
           grep -n "duplicatesStrategy\|iosSkipSigning" ios/build.gradle
-          echo "--- removing stale 'arc' framework reference (nothing in this checkout produces arc.framework) ---"
-          sed -i '' '/<framework>arc<\/framework>/d' ios/robovm.xml
-          grep -n "framework" ios/robovm.xml
 
       - name: Build the IPA
         working-directory: Mindustry
